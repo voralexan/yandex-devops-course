@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  revisionHistoryLimit: 15
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 20%
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: gitlab.praktikum-services.ru:5050/a.voronin/sausage-store/sausage-backend:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SPRING_FLYWAY_ENABLED
+              value: "false"
+            - name: REPORT_PATH
+              value: "./logs"
+            - name: LOG_PATH
+              value: "./logs"
+            - name: VAULT_HOST
+              value: "62.84.114.149"
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault
+                  key: vault_token
+                  environment:
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: 0.1
+            limits:
+              memory: "1024Mi"
+              cpu: 0.2
+          ports:
+            - name: backend
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 1
+            failureThreshold: 6
+      imagePullSecrets:
+        - name: docker-config-secret

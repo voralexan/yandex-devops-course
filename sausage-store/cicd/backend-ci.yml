@@ -1,0 +1,138 @@
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - project: 'templates/ci'
+    file: 'DockerInDockerTemplate.yml'
+
+stages:
+  - build
+  - test
+  - release
+  - notify
+  - deploy
+
+variables:
+  SAST_EXCLUDED_ANALYZERS: "eslint,semgrep,nodejs-scan"
+
+cache:
+  paths:
+    - ${CI_PROJECT_DIR}/.m2/repository
+
+build-backend:
+  stage: build
+  image: docker:20.10.12-dind-rootless
+  before_script:
+    - until docker info; do sleep 1; done
+    # переменные CI_REGISTRY_USER, CI_REGISTRY_PASSWORD, CI_REGISTRY генерятся Гитлабом, их задавать не надо
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - cd backend
+    - >
+      docker build
+      --build-arg VERSION=$VERSION
+      --tag $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA
+      .
+    - docker push $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA
+
+spotbugs-sast:
+  stage: test
+  rules:
+    - changes:
+      - backend/*
+      when: on_success
+    - when: never
+  variables:
+    COMPILE: "false"
+    SAST_JAVA_VERSION: 11
+    MAVEN_REPO_PATH: ${CI_PROJECT_DIR}/.m2/repository
+  needs:
+    - build-backend
+
+sonarqube-backend-sast:
+  stage: test
+  only:
+    changes:
+    - backend/*
+  image: maven:3.8.2-openjdk-16-slim
+  script:
+    - cd backend
+    - >
+      mvn verify sonar:sonar
+      -Dsonar.qualitygate.wait=true
+      -Dsonar.projectKey=${SONAR_PROJECT_BACKEND_NAME}
+      -Dsonar.projectName=${SONAR_PROJECT_BACKEND_NAME}
+      -Dsonar.host.url=${SONARQUBE_URL}
+      -Dsonar.login=${SONAR_LOGIN}
+  needs:
+    - build-backend
+
+upload-backend-latest:
+  variables:
+    GIT_STRATEGY: none
+  image: docker:20.10.12-dind-rootless
+  stage: release
+  before_script:
+    - until docker info; do sleep 1; done
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA
+    # если образ прошел проверки в CI (сканирование, тесты и т.д), то тегаем latest
+    - docker tag $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/sausage-backend:latest
+    - docker push $CI_REGISTRY_IMAGE/sausage-backend:latest
+
+slack-notify-backend:
+  stage: notify
+  only:
+    changes:
+    - backend/*
+    variables:
+    - $CI_COMMIT_MESSAGE =~ /send notification/
+  script: >
+    curl -X POST -H 'Content-type:application/json' --data '
+      {
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "plain_text",
+                    "text": "Вышла новая версия бекенда сосисочной — '$VERSION' ✓"
+                }
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Скачать артефакты бекенд",
+                            "emoji": true
+                        },
+                        "url": "'$NEXUS_REPO_URL'/sausage-store-voronin-aleksey-backend/com/yandex/practicum/devops/sausage-store/'$VERSION'/sausage-store-'$VERSION'.jar"
+                    }
+                ]
+            }
+        ]
+    }'
+    $SLACK_HOOK
+
+deploy:
+  image: vault:1.11.3
+  stage: deploy
+  when: manual
+  before_script:
+    - apk add openssh-client bash
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - export VAULT_TOKEN="$(vault write -field=token auth/jwt/login role=sausage-store jwt=$CI_JOB_JWT)"
+    - ssh ${DEV_USER}@${DEV_HOST}
+      "export "VERSION=${VERSION}";
+       export "SPRING_DATASOURCE_URL=$(vault kv get -field=spring.datasource.url secret/sausage-store)";
+       export "SPRING_DATASOURCE_USERNAME=$(vault kv get -field=spring.datasource.username secret/sausage-store)";
+       export "SPRING_DATASOURCE_PASSWORD=$(vault kv get -field=spring.datasource.password secret/sausage-store)";
+       export "SPRING_DATA_MONGODB_URI=$(vault kv get -field=spring.data.mongodb.uri secret/sausage-store)";
+      /bin/bash -s " < ./backend/deploy.sh

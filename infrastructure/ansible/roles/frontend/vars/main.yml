@@ -1,0 +1,7 @@
+---
+# vars file for frontend
+nexus_username: a.voronin
+nexus_password: # Specify in runtime
+frontend_service_user: www-data
+frontend_lib_directory: /var/www-data
+frontend_version: 1.0.296337

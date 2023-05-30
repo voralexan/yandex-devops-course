@@ -1,0 +1,43 @@
+include:
+  - project: 'templates/ci'
+    file: 'DockerInDockerTemplate.yml'
+
+stages:
+  - build
+  - deploy
+
+
+build-backend-report:
+  stage: build
+  image: docker:20.10.12-dind-rootless
+  before_script:
+    - until docker info; do sleep 1; done
+    # переменные CI_REGISTRY_USER, CI_REGISTRY_PASSWORD, CI_REGISTRY генерятся Гитлабом, их задавать не надо
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - cd backend-report
+    - >
+      docker build
+      --build-arg VERSION=$VERSION
+      --tag $CI_REGISTRY_IMAGE/sausage-backend-report:latest
+      .
+    - docker push $CI_REGISTRY_IMAGE/sausage-backend-report:latest
+
+deploy-backend-report:
+  stage: deploy
+  image: alpine:3.15.0
+  when: manual
+  before_script:
+    - apk add openssh-client bash
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - ssh ${DEV_USER}@${DEV_HOST}
+      "export "SPRING_DATA_MONGODB_URI=${MONGO_DATA}";
+       export "GR_USER=${NEXUS_REPO_USER}";
+       export "GR_PASS=${NEXUS_REPO_PASS}";
+      /bin/bash -s " < ./backend-report/deploy.sh

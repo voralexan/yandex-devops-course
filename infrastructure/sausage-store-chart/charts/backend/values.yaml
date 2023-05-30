@@ -1,0 +1,63 @@
+vault_token: aHZzLkNBRVNJRmkwVC1lUldlN2ozQ0lkc0poSDZPdzVmSTA0X0FJbEZxU2pYUXk0Z1Q2UUdoNEtIR2gyY3k1bWNrSk5Vbm8xTkRkTmNHaE9ibFJWUlVwcVptTm5aRUU
+vault_host: "62.84.114.149"
+
+vpa:
+  updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        minAllowed:
+          cpu: 0
+          memory: 0Mi
+        maxAllowed:
+          cpu: 1
+          memory: 1024Mi
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+
+replicaCount: 2
+revisionHistoryLimit: 15
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 20%
+
+image:
+  repository: gitlab.praktikum-services.ru:5050/a.voronin/sausage-store/sausage-backend
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: [docker-config-secret]
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 1024Mi
+  requests:
+    cpu: 100m
+    memory: 512Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

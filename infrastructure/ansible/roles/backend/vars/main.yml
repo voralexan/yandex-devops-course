@@ -1,0 +1,8 @@
+---
+# vars file for backend
+nexus_username: a.voronin
+nexus_password: # Specify in runtime
+backend_service_user: jarservice
+backend_report_directory: /opt/sausage-store/backend/lib/
+backend_lib_directory: /opt/sausage-store/backend/lib/
+backend_maven_version: 1.0.296337

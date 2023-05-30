@@ -1,0 +1,17 @@
+stages:
+  - kube
+
+kubernetes:
+  only:
+    changes:
+      - kubernetes/**/*
+  stage: kube
+  image: bitnami/kubectl:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+    - kubectl apply -f kubernetes/ --recursive
+    - rm -f ~/.kube/config
+  environment:
+    name: kube
+    url: https://voronin-aleksey-12.k8s.praktikum-services.tech

@@ -1,0 +1,65 @@
+version: '3.5'
+services:
+  frontend:
+    build: ./frontend
+    image: gitlab.praktikum-services.ru:5050/a.voronin/sausage-store/sausage-frontend:latest
+    ports:
+      - 80:80
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    environment:
+      - DEFAULT_HOST=sausage-back
+    networks:
+      - sausage_network
+
+  backend-blue:
+    build: ./backend
+    image: gitlab.praktikum-services.ru:5050/a.voronin/sausage-store/sausage-backend:latest
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      LOG_PATH: ./logs
+      REPORT_PATH: ./logs
+      SPRING_FLYWAY_ENABLED: "false"
+      VIRTUAL_HOST: sausage-back
+    networks:
+      - sausage_network
+    healthcheck:
+        test: curl --fail -s http://localhost:8080/actuator/health
+        interval: 30s
+        timeout: 10s
+        start_period: 20s
+        retries: 6
+
+  backend-green:
+    build: ./backend
+    image: gitlab.praktikum-services.ru:5050/a.voronin/sausage-store/sausage-backend:latest
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      LOG_PATH: ./logs
+      SPRING_FLYWAY_ENABLED: "false"
+      VIRTUAL_HOST: sausage-back
+    networks:
+      - sausage_network
+    healthcheck:
+        test: curl --fail -s http://localhost:8080/actuator/health
+        interval: 30s
+        timeout: 10s
+        start_period: 20s
+        retries: 6
+
+  backend-report:
+    build: ./backend-report
+    image: gitlab.praktikum-services.ru:5050/a.voronin/sausage-store/sausage-backend-report:latest
+    environment:
+      DB: ${SPRING_DATA_MONGODB_URI}
+      PORT: 8082
+    networks:
+      - sausage_network
+
+networks:
+  sausage_network:
+    driver: bridge

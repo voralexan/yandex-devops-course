@@ -1,0 +1,14 @@
+[Unit]
+Description=Sausage-store frontend service
+
+[Service]
+[Service]
+ExecStart=sudo http-server /var/www-data/dist/frontend/ -p 80 --proxy http://localhost:8080
+Restart=always
+User=front-user
+StandardOutput=append:/logs/out-front.log
+StandardError=inherit
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

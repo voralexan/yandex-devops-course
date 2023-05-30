@@ -1,0 +1,14 @@
+[Unit]
+Description=sausage-store-frontend
+
+[Service]
+User={{ frontend_service_user }}
+
+Restart=always
+
+Environment=REPORT_PATH={{ backend_report_directory }}
+
+ExecStart=sudo npx http-server {{ frontend_lib_directory }}/frontend -p 80 --proxy http://localhost:8080
+
+[Install]
+WantedBy=multi-user.target

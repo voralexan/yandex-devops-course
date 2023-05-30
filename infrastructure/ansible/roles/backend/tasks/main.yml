@@ -1,0 +1,64 @@
+---
+- name: Update apt packages
+  apt:
+    upgrade: yes
+    update_cache: yes
+    cache_valid_time: 86400
+  become: true
+
+- name: Install packages
+  apt:
+    pkg:
+    - openjdk-16-jdk
+    - python3-apt
+    - python3-pip
+  become: true
+
+- name: Install lxml
+  pip: name=lxml
+  become: true
+
+- name: Add service account
+  user:
+    name: "{{ backend_service_user }}"
+    create_home: no
+    shell: /sbin/nologin
+  become: true
+
+- name: Create directory for backend files
+  file:
+    path: "{{ backend_lib_directory }}"
+    state: directory
+    group: "{{ backend_service_user }}"
+    owner: "{{ backend_service_user }}"
+    recurse: true
+    mode: 0755
+  become: true
+
+- name: Download Nexus Package
+  maven_artifact:
+    username: "{{ nexus_username }}"
+    password:  "{{ nexus_password }}"
+    dest: "{{ backend_lib_directory }}sausage-store.jar"
+    repository_url: "https://nexus.praktikum-services.ru/repository/sausage-store-voronin-aleksey-backend"
+    group_id: "com.yandex.practicum.devops"
+    artifact_id: "sausage-store"
+    version: "{{ backend_maven_version }}"
+  become: true
+
+- name: Create service
+  template:
+    src: sausage-store-backend.service.j2
+    dest: /etc/systemd/system/sausage-store-backend.service
+  become: true
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+  become: true
+
+- name: Start backend
+  service:
+    name: sausage-store-backend
+    state: started
+  become: true

@@ -1,0 +1,44 @@
+---
+groups:
+- name: Sausage store rules
+  rules:
+  - alert: InstanceDown
+    expr: up{app_kubernetes_io_instance="sausage-store-a-voronin"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      project: "sausage_store"
+      component: "Backend"
+    annotations:
+      summary: "Backend Instance {{ $labels.instance }} down"
+      description: "Backend {{ $labels.instance }} of project {{ $labels.project }} has been down for more than 1 minute."
+  - alert: APIHighRequestLatency
+    expr: histogram_quantile(0.95, sum  by (le) (rate(http_server_requests_seconds_bucket{method="POST",uri="/api/orders"}[1m])))  > 100
+    for: 5m
+    labels:
+      severity: warning
+      project: "sausage_store"
+      component: "Backend"
+    annotations:
+      summary: "Request latency rising"
+      description: "Request latency is over 100 in the last minute"
+  - alert: InternalServerError
+    expr: rate(http_server_requests_seconds_count{status="500"}[1m]) > 0
+    for: 1m
+    labels:
+      severity: critical
+      project: "sausage_store"
+      component: "Backend"
+    annotations:
+      summary: "Found 500 error code"
+      description: "Backend returned 500 error in the last minute"
+  - alert: PromApiError
+    expr: histogram_quantile(0.98, sum  by (le) (rate(http_server_requests_seconds_bucket{uri="/actuator/prometheus", status=~"4.*|5.*"}[2m]))) > 0
+    for: 2m
+    labels:
+      severity: warning
+      project: "sausage_store"
+      component: "Backend"
+    annotations:
+      summary: "Promtheus api errors"
+      description: "Prometheus responce codes 400|500 in last 2 minutes"

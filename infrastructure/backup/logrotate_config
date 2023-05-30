@@ -1,0 +1,14 @@
+/opt/log/*.log {
+  rotate 3
+  hourly
+  compress
+  delaycompress
+  missingok
+  size 10M
+  dateext
+  create
+  postrotate
+    date >> /opt/student_rotate.log
+  endscript
+}
+
